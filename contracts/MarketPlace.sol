@@ -433,18 +433,20 @@ contract MarketPlace is ERC165 {
         Order storage _order = order[_orderNonce];
         require(_order.seller != msg.sender, "Seller can't buy");
 
-        uint256 _projectID = ERC1155Interface.getProjectIDbyToken(_order.tokenId);
-        bytes32 _rootHash = ERC1155Interface.getProjectDetail(_projectID);
-
         if(!_order.isReSale)
+
         {
+            uint256 _projectID = ERC1155Interface.getProjectIDbyToken(_order.tokenId);
+            bytes32 _rootHash = ERC1155Interface.getProjectDetail(_projectID);
+
             require(
             verify(msg.sender, allowance, proof, _rootHash),
             "User not authenticated");
             require(copies <= allowance && (userLimit[_projectID][msg.sender]+ copies) <= allowance,"User reached it's NFT limit");
-        
+            updateUserLimit(_projectID,msg.sender,copies);
         }
-       require(_order.startTime <= block.timestamp, "Start time not reached");
+
+        require(_order.startTime <= block.timestamp, "Start time not reached");
         require(_order.endTime >= block.timestamp, "End time reached");
         require(_order.startPrice > 0, "NFT not in marketplace");
         require(_order.saleType == SaleType.BuyNow, "Wrong saletype");
@@ -468,8 +470,7 @@ contract MarketPlace is ERC165 {
         );
         
         addTotalRaise(_order.tokenId, copies * _order.startPrice);
-        updateUserLimit(_projectID,msg.sender,copies);
-
+        
          emit ItemBought(
             order[_orderNonce],
             _orderNonce,
@@ -494,15 +495,17 @@ contract MarketPlace is ERC165 {
     ) external returns (bool) {
         Order storage _order = order[_orderNonce];
 
-        uint256 _projectID = ERC1155Interface.getProjectIDbyToken(_order.tokenId);
-        bytes32  _rootHash= ERC1155Interface.getProjectDetail(_projectID);
-
        if(!_order.isReSale)
         {
-             require(verify(msg.sender, allowance, proof, _rootHash),
-            "User not authenticated");
-           require(_copies <= allowance && (userLimit[_projectID][msg.sender]+ _copies) <= allowance,"User reached it's NFT limit");
-       
+
+            uint256 _projectID = ERC1155Interface.getProjectIDbyToken(_order.tokenId);
+            bytes32  _rootHash= ERC1155Interface.getProjectDetail(_projectID);
+
+            require(verify(msg.sender, allowance, proof, _rootHash),
+                "User not authenticated");
+            require(_copies <= allowance && (userLimit[_projectID][msg.sender]+ _copies) <= allowance,"User reached it's NFT limit");
+            updateUserLimit(_projectID,msg.sender,_copies);
+        
         }
         
         require(_order.startPrice > 0, "NFT not in marketplace");
@@ -538,7 +541,7 @@ contract MarketPlace is ERC165 {
         );
         
         addTotalRaise(_order.tokenId, _copies * currentPrice);
-        updateUserLimit(_projectID,msg.sender,_copies);
+       
 
         emit ItemBought(
             order[_orderNonce],
