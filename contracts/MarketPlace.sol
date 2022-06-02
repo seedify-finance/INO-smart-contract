@@ -143,18 +143,6 @@ interface IERC20 {
     );
 }
 
-pragma solidity ^0.8.0;
-
-abstract contract Context {
-    function _msgSender() internal view virtual returns (address) {
-        return msg.sender;
-    }
-
-    function _msgData() internal view virtual returns (bytes calldata) {
-        return msg.data;
-    }
-}
-
 library SafeERC20 {
     function safeTransfer(
         IERC20 token,
@@ -277,7 +265,6 @@ contract MarketPlace is ERC165 {
     
     //Mappings
     mapping(uint256 => Order) public order;
-    mapping(address => mapping(uint256 => uint256)) public index;
     mapping(uint256 => uint256)public totalRaise;
     mapping(uint256 => mapping(address => uint256))public userLimit;
 
