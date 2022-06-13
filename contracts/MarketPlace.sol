@@ -267,7 +267,7 @@ contract MarketPlace is ERC165 {
     mapping(uint256 => Order) public order;
     mapping(uint256 => uint256)public totalRaise;
     mapping(uint256 => mapping(address => uint256))public userLimit;
-
+    mapping(uint256 => uint256)internal projectRaise;
     constructor(
         address _token,
         address _owner,
@@ -325,7 +325,6 @@ contract MarketPlace is ERC165 {
             interfaceId == type(IERC1155).interfaceId ||
             super.supportsInterface(interfaceId);
     }
-
 
     function placeOrder(
         uint256 tokenId,
@@ -432,11 +431,11 @@ contract MarketPlace is ERC165 {
     ) external returns (bool) {
         Order storage _order = order[_orderNonce];
         require(_order.seller != msg.sender, "Seller can't buy");
+        uint256 _projectID = ERC1155Interface.getProjectIDbyToken(_order.tokenId);
 
         if(!_order.isReSale)
 
         {
-            uint256 _projectID = ERC1155Interface.getProjectIDbyToken(_order.tokenId);
             bytes32 _rootHash = ERC1155Interface.getProjectDetail(_projectID);
 
             require(
@@ -470,7 +469,8 @@ contract MarketPlace is ERC165 {
         );
         
         addTotalRaise(_order.tokenId, copies * _order.startPrice);
-        
+        addProjectRaise(_projectID, copies * _order.startPrice);
+
          emit ItemBought(
             order[_orderNonce],
             _orderNonce,
@@ -494,11 +494,10 @@ contract MarketPlace is ERC165 {
         bytes32[] calldata proof      
     ) external returns (bool) {
         Order storage _order = order[_orderNonce];
+        uint256 _projectID = ERC1155Interface.getProjectIDbyToken(_order.tokenId);
 
        if(!_order.isReSale)
         {
-
-            uint256 _projectID = ERC1155Interface.getProjectIDbyToken(_order.tokenId);
             bytes32  _rootHash= ERC1155Interface.getProjectDetail(_projectID);
 
             require(verify(msg.sender, allowance, proof, _rootHash),
@@ -541,7 +540,7 @@ contract MarketPlace is ERC165 {
         );
         
         addTotalRaise(_order.tokenId, _copies * currentPrice);
-       
+        addProjectRaise(_projectID,_copies * currentPrice);
 
         emit ItemBought(
             order[_orderNonce],
@@ -675,6 +674,11 @@ contract MarketPlace is ERC165 {
         
     }
 
+    function addProjectRaise(uint256 _projectId, uint256 _amount)internal{
+        projectRaise[_projectId] += _amount;
+        
+    }
+
     function verify(
         address user,
         uint256 amount,
@@ -692,6 +696,10 @@ contract MarketPlace is ERC165 {
     
     function updateUserLimit(uint256 _projectID, address _user, uint256 _copies)internal{
          userLimit[_projectID][_user] += _copies;
+    }
+
+    function getProjectRaisedFunds(uint256 _projectID)external view returns(uint256){
+        return projectRaise[_projectID];
     }
     
     function onERC1155Received(
