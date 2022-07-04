@@ -1,18 +1,10 @@
-/**
- *Submitted for verification at BscScan.com on 2022-05-05
-*/
-
-/**
- *Submitted for verification at BscScan.com on 2022-05-05
-*/
-
 // SPDX-License-Identifier: MIT
 // File: @openzeppelin/contracts@4.4.1/utils/Context.sol
 
 
 // OpenZeppelin Contracts v4.4.1 (utils/Context.sol)
 
-pragma solidity ^0.8.0;
+pragma solidity 0.8.7;
 
 /**
  * @dev Provides information about the current execution context, including the
@@ -33,8 +25,6 @@ abstract contract Context {
         return msg.data;
     }
 }
-
-pragma solidity ^0.8.0;
 
 library Strings {
 
@@ -84,8 +74,6 @@ library Strings {
 
 
 // OpenZeppelin Contracts v4.4.1 (security/Pausable.sol)
-
-pragma solidity ^0.8.0;
 
 
 /**
@@ -178,9 +166,6 @@ abstract contract Pausable is Context {
 
 // OpenZeppelin Contracts v4.4.1 (access/Ownable.sol)
 
-pragma solidity ^0.8.0;
-
-
 /**
  * @dev Contract module which provides a basic access control mechanism, where
  * there is an account (an owner) that can be granted exclusive access to
@@ -235,7 +220,7 @@ abstract contract Ownable is Context {
      * @dev Transfers ownership of the contract to a new account (`newOwner`).
      * Can only be called by the current owner.
      */
-    function transferOwnership(address newOwner) public virtual onlyOwner {
+    function transferOwnership(address newOwner) external virtual onlyOwner {
         require(newOwner != address(0), "Ownable: new owner is the zero address");
         _transferOwnership(newOwner);
     }
@@ -255,8 +240,6 @@ abstract contract Ownable is Context {
 
 
 // OpenZeppelin Contracts v4.4.1 (utils/Address.sol)
-
-pragma solidity ^0.8.0;
 
 /**
  * @dev Collection of functions related to the address type
@@ -476,7 +459,6 @@ library Address {
 
 // OpenZeppelin Contracts v4.4.1 (utils/introspection/IERC165.sol)
 
-pragma solidity ^0.8.0;
 
 /**
  * @dev Interface of the ERC165 standard, as defined in the
@@ -503,8 +485,6 @@ interface IERC165 {
 
 
 // OpenZeppelin Contracts v4.4.1 (utils/introspection/ERC165.sol)
-
-pragma solidity ^0.8.0;
 
 
 /**
@@ -534,8 +514,6 @@ abstract contract ERC165 is IERC165 {
 
 
 // OpenZeppelin Contracts v4.4.1 (token/ERC1155/IERC1155Receiver.sol)
-
-pragma solidity ^0.8.0;
 
 
 /**
@@ -589,8 +567,6 @@ interface IERC1155Receiver is IERC165 {
 
 
 // OpenZeppelin Contracts v4.4.1 (token/ERC1155/IERC1155.sol)
-
-pragma solidity ^0.8.0;
 
 
 /**
@@ -717,8 +693,6 @@ interface IERC1155 is IERC165 {
 
 // OpenZeppelin Contracts v4.4.1 (token/ERC1155/extensions/IERC1155MetadataURI.sol)
 
-pragma solidity ^0.8.0;
-
 
 /**
  * @dev Interface of the optional ERC1155MetadataExtension interface, as defined
@@ -740,14 +714,6 @@ interface IERC1155MetadataURI is IERC1155 {
 
 
 // OpenZeppelin Contracts v4.4.1 (token/ERC1155/ERC1155.sol)
-
-pragma solidity ^0.8.0;
-
-
-
-
-
-
 
 /**
  * @dev Implementation of the basic standard multi-token.
@@ -1207,8 +1173,6 @@ contract ERC1155 is Context, ERC165, IERC1155, IERC1155MetadataURI {
 
 // OpenZeppelin Contracts v4.4.1 (token/ERC1155/extensions/ERC1155Burnable.sol)
 
-pragma solidity ^0.8.0;
-
 
 /**
  * @dev Extension of {ERC1155} that allows token holders to destroy both their
@@ -1244,53 +1208,8 @@ abstract contract ERC1155Burnable is ERC1155 {
     }
 }
 
-pragma solidity ^0.8.0;
-
-/// @title IERC2981Royalties
-/// @dev Interface for the ERC2981 - Token Royalty standard
-interface IERC2981Royalties {
-    /// @notice Called with the sale price to determine how much royalty
-    //          is owed and to whom.
-    /// @param _tokenId - the NFT asset queried for royalty information
-    /// @param _value - the sale price of the NFT asset specified by _tokenId
-    /// @return _receiver - address of who should be sent the royalty payment
-    /// @return _royaltyAmount - the royalty payment amount for value sale price
-    function royaltyInfo(uint256 _tokenId, uint256 _value)
-        external
-        view
-        returns (address _receiver, uint256 _royaltyAmount);
-}
-
-pragma solidity ^0.8.0;
-
-/// @dev This is a contract used to add ERC2981 support to ERC721 and 1155
-abstract contract ERC2981Base is ERC165, IERC2981Royalties {
-    struct RoyaltyInfo {
-        address recipient;
-        uint24 amount;
-    }
-
-    /// @inheritdoc	ERC165
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        virtual
-        override
-        returns (bool)
-    {
-        return
-            interfaceId == type(IERC2981Royalties).interfaceId ||
-            super.supportsInterface(interfaceId);
-    }
-}
-
-
-// File: contract-d19dcc7f33.sol
-
-pragma solidity ^0.8.2;
-
 // Seedify NFT lanchpad smartcontract
-contract SeedifyLaunchpadNFT is ERC1155, Ownable, Pausable, ERC1155Burnable, ERC2981Base { 
+contract SeedifyLaunchpadNFT is ERC1155, Ownable, Pausable, ERC1155Burnable { 
    
     // mapping token uri
     mapping (uint256 => string) private _uris;
@@ -1310,17 +1229,26 @@ contract SeedifyLaunchpadNFT is ERC1155, Ownable, Pausable, ERC1155Burnable, ERC
         bytes32 hash;
     }
     mapping(uint256=>projectData) public projectDetail;
-    // mapping royalties
-    mapping(uint256 => RoyaltyInfo) internal _royalties;
     // event for whitelisting
     event Whitelisted(address indexed _address);
+    // delete payment token address
+    event DeletePaymentAddress(address indexed _address);    
+    // remove address from whitelist
     event RemovedFromWhitelist(address indexed account);
     // event for Payment Token address
     event PaymentToken(address indexed _address);
     // event for URIs
     event URIs(uint256 tokenId, string uri);
+    // updating project
     event ProjectUpdated (uint256 projectID, bytes32 rootHash);
     using Strings for string;
+
+    // modifier for marketplace
+    modifier onlyMarketPlace {
+      require(msg.sender == marketPlaceAddress, "Invalid address call!");
+      _;
+   }
+
     struct data {
         string num;
     }
@@ -1340,13 +1268,13 @@ contract SeedifyLaunchpadNFT is ERC1155, Ownable, Pausable, ERC1155Burnable, ERC
     }
 
     // get uri
-     function getUri(uint256 tokenId) public view
+     function getUri(uint256 tokenId) external view
         returns (string memory uri){
         uri = _uris[tokenId];
     }
     
     // mint the single items
-    function mint(uint256 amount, uint256 royalty, uint256 projectID, string memory uri)
+    function mint(uint256 amount, uint256 projectID, string memory uri)
         public
         whenNotPaused
     {   
@@ -1356,12 +1284,11 @@ contract SeedifyLaunchpadNFT is ERC1155, Ownable, Pausable, ERC1155Burnable, ERC
         _mapProject(projectID, strTokenIDs);
         getProjectID[tokenIDs] = projectID;
         _setTokenUri(tokenIDs, uri);
-        _setTokenRoyalty(tokenIDs, msg.sender, royalty);
         _mint(msg.sender, tokenIDs, amount, "0x00");
     }
     
     // mint batch items
-    function mintBatch(uint256[] memory amounts, uint256 royalty, uint256 projectID, string[] memory uri)
+    function mintBatch(uint256[] memory amounts, uint256 projectID, string[] memory uri)
         public
         whenNotPaused
     {
@@ -1375,21 +1302,25 @@ contract SeedifyLaunchpadNFT is ERC1155, Ownable, Pausable, ERC1155Burnable, ERC
             strTokenIDs=Strings.toString(tokenIDs);
             _mapProject(projectID, strTokenIDs); 
              getProjectID[tokenIDs] = projectID;   
-            _setTokenUri(tokenIDs, uri[i]);
-            _setTokenRoyalty(tokenIDs, msg.sender, royalty);        
+            _setTokenUri(tokenIDs, uri[i]);     
         }
         _mintBatch(msg.sender, ids, amounts, "0x00");
     }
+    // add marketplace address
+    function addMarketPlaceAddress(address _address) external onlyOwner {
+        require(_address != address(0), "Invalid address");
+        marketPlaceAddress = _address;
+    }
 
       //add the token address
-    function addTokenAddress(address _address) public onlyOwner {
+    function addPaymentTokenAddress(address _address) external onlyOwner {
         require(_address != address(0), "Invalid address");
         tokenAddresses.push(_address);
         emit PaymentToken(_address);
     }
 
-     // check the token address in the list
-    function paymentTokens(address _address) public view returns(bool) {
+     // check the payment token address in the list
+    function paymentTokens(address _address) external view returns(bool) {
         uint i;
         uint length = tokenAddresses.length;
         for (i = 0; i < length; i++) {
@@ -1402,13 +1333,14 @@ contract SeedifyLaunchpadNFT is ERC1155, Ownable, Pausable, ERC1155Burnable, ERC
     }
 
      // delete the token address from the list
-    function deleteTokenAddress(address _address) public onlyOwner returns(bool) {
+    function deletePaymentTokenAddress(address _address) external onlyOwner returns(bool) {
         uint i;
         uint length = tokenAddresses.length;
         for (i = 0; i < length; i++) {
             address _addressArr = tokenAddresses[i];
             if (_addressArr == _address) {
                delete tokenAddresses[i];
+               emit DeletePaymentAddress(tokenAddresses[i]);
                return true;
             }
         }
@@ -1421,20 +1353,20 @@ contract SeedifyLaunchpadNFT is ERC1155, Ownable, Pausable, ERC1155Burnable, ERC
 
     // map project id
 
-    function _mapProject(uint256 num, string memory str) public {
+    function _mapProject(uint256 num, string memory str) private {
         getProjectDataByID[num]=data(appendStrings(num,str));
         getProjectDataByTokenID[str]=data1(appendStrings(num,str));
     }
 
      //add the address in Whitelist
-    function addWhitelist(address _address) public onlyOwner {
+    function addWhitelist(address _address) external onlyOwner {
         require(_address != address(0), "Invalid address");
         whitelist.push(_address);
         emit Whitelisted(_address);
     }
 
      //remove the address in Whitelist
-    function removeWhitelist(address _address) public onlyOwner returns(bool) {
+    function removeWhitelist(address _address) external onlyOwner returns(bool) {
         uint i;
         uint length = whitelist.length;
         for (i = 0; i < length; i++) {
@@ -1471,31 +1403,6 @@ contract SeedifyLaunchpadNFT is ERC1155, Ownable, Pausable, ERC1155Burnable, ERC
         _unpause();
     }  
 
-    /// @dev Sets token royalties
-    /// @param tokenId the token id fir which we register the royalties
-    /// @param recipient recipient of the royalties
-    /// @param value percentage (using 2 decimals - 10000 = 100, 0 = 0)
-    function _setTokenRoyalty(
-        uint256 tokenId,
-        address recipient,
-        uint256 value
-    ) internal {
-        require(value <= 10000, 'ERC2981Royalties: Too high');
-        _royalties[tokenId] = RoyaltyInfo(recipient, uint24(value));
-    }
-
-    /// @inheritdoc	IERC2981Royalties
-    function royaltyInfo(uint256 tokenId, uint256 value)
-        external
-        view
-        override
-        returns (address receiver, uint256 royaltyAmount)
-    {
-        RoyaltyInfo memory royalties = _royalties[tokenId];
-        receiver = royalties.recipient;
-        royaltyAmount = (value * royalties.amount) / 10000;
-    }
-
     function _beforeTokenTransfer(address operator, address from, address to, uint256[] memory ids, uint256[] memory amounts, bytes memory tData)
         internal
         whenNotPaused
@@ -1504,37 +1411,37 @@ contract SeedifyLaunchpadNFT is ERC1155, Ownable, Pausable, ERC1155Burnable, ERC
         super._beforeTokenTransfer(operator, from, to, ids, amounts, tData);
     }
 
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC1155, ERC2981Base) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC1155) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 
-    function createProject(bytes32 hash) public {
-        require(isWhitelisted(msg.sender)==true, "Address has not whitelisted!");
+    function createProject(bytes32 hash) external {
+        require(isWhitelisted(msg.sender), "This address is not approved.");
         projectIDs++;
         projectArray.push(msg.sender);
         projectDetail[projectIDs]=projectData(msg.sender, hash);
         emit ProjectUpdated(projectIDs,hash);
     }
 
-    function updateProject(uint256 projectID, bytes32 hash) public {
-        require(isWhitelisted(msg.sender)==true, "Address has not whitelisted!");
-        require(projectID!=0, "ProjectID should not equal to 0!");
+    function updateProject(uint256 projectID, bytes32 hash) external {
+        require(isWhitelisted(msg.sender), "This address is not approved.");
+        require(projectID!=0, "ProjectID should not be equal to 0!");
         require(projectArray.length>=projectID, "ProjectID is not available!");
-        require(projectArray[projectID-1]==msg.sender, "You have not created this project!");
+        require(projectArray[projectID-1]==msg.sender, "Invalid project owner!");
         projectDetail[projectID]=projectData(msg.sender, hash);
         emit ProjectUpdated(projectID,hash);
     }
 
-    function getProjectDetail(uint256 projectID) public view returns(bytes32) {
+    function getProjectDetail(uint256 projectID) external view onlyMarketPlace returns(bytes32) {
         return projectDetail[projectID].hash;
     }
 
-    function getNFTprojectDetail(uint256 tokenID) public view returns(string memory) {
+    function getNFTprojectDetail(uint256 tokenID) external view onlyMarketPlace returns(string memory) {
         string memory strTokenID=Strings.toString(tokenID);
         return getProjectDataByTokenID[strTokenID].num;
     }
 
-    function getProjectIDbyToken(uint256 tokenID)public view returns(uint256){
+    function getProjectIDbyToken(uint256 tokenID)external view onlyMarketPlace returns(uint256){
         return getProjectID[tokenID];
     }
 }
