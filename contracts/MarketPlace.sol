@@ -1,10 +1,14 @@
 /**
+ *Submitted for verification at BscScan.com on 2022-07-01
+*/
+
+/**
  *Submitted for verification at BscScan.com on 2022-05-09
 */
 
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity 0.8.7;
 
 interface IERC165 {
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
@@ -142,14 +146,45 @@ interface IERC20 {
         uint256 value
     );
 }
+abstract contract ReentrancyGuard {
+   
+    uint256 private constant _NOT_ENTERED = 1;
+    uint256 private constant _ENTERED = 2;
 
+    uint256 private _status;
+
+    constructor() {
+        _status = _NOT_ENTERED;
+    }
+
+    /**
+     * @dev Prevents a contract from calling itself, directly or indirectly.
+     * Calling a `nonReentrant` function from another `nonReentrant`
+     * function is not supported. It is possible to prevent this from happening
+     * by making the `nonReentrant` function external, and making it call a
+     * `private` function that does the actual work.
+     */
+    modifier nonReentrant() {
+        // On the first call to nonReentrant, _notEntered will be true
+        require(_status != _ENTERED, "ReentrancyGuard: reentrant call");
+
+        // Any calls to nonReentrant after this point will fail
+        _status = _ENTERED;
+
+        _;
+
+        // By storing the original value once again, a refund is triggered (see
+        // https://eips.ethereum.org/EIPS/eip-2200)
+        _status = _NOT_ENTERED;
+    }
+}
 library SafeERC20 {
     function safeTransfer(
         IERC20 token,
         address to,
         uint256 value
     ) internal {
-        require(token.transfer(to, value));
+        require(token.transfer(to, value),"ERC20: Transfer Failed");
     }
 
     function safeTransferFrom(
@@ -158,24 +193,9 @@ library SafeERC20 {
         address to,
         uint256 value
     ) internal {
-        require(token.transferFrom(from, to, value));
+        require(token.transferFrom(from, to, value),"ERC20: TransferFrom Failed");
     }
 }
-
-interface ILocking {
-    function userDeposits(address user)
-        external
-        view
-        returns (
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            bool
-        );
-}
-
 
 library MerkleProof {
     function verify(
@@ -219,17 +239,14 @@ library MerkleProof {
 }
 
 
-contract MarketPlace is ERC165 {
+contract MarketPlace is ERC165,ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     address public owner;
-    address public tokenAddress;
     uint256 public platformFees;
     address public Treasury;
     uint256 public orderNonce;
-    IERC20 public ERC20Interface;
     IERC1155 public ERC1155Interface;
-    ILocking public SNFTLockInterface;
 
     enum SaleType {
         BuyNow,
@@ -248,12 +265,12 @@ contract MarketPlace is ERC165 {
         uint256 endPrice;
         uint256 stepInterval;
         uint256 priceStep;
-        bool isReSale;
     }
 
     //Events 
     event PlatformFeesUpdated(uint256 fees, uint256 timestamp);
     event OwnerUpdated(address newOwner, uint256 timestamp);
+    event TreasuryUpdated(address newTreasury, uint256 timestamp);
     event OrderPlaced(Order _order, uint256 _orderNonce, uint256 timestamp);
     event OrderCancelled(Order _order, uint256 _orderNonce, uint256 timestamp);
     event ItemBought(
@@ -272,34 +289,39 @@ contract MarketPlace is ERC165 {
         address _token,
         address _owner,
         uint256 _platformFees,
-        address _treasury,
-        address _SNFTLock
+        address _treasury
     ) {
         require(
             _token != address(0) &&
-                _owner != address(0) &&
-                _owner != address(0) &&
-                _SNFTLock != address(0),
+            _owner != address(0) &&
+            _treasury != address(0),
             "Zero address"
         );
-        require(_platformFees <= 50, "High fee");
+        require(_platformFees <= 5000, "High fee");
         ERC1155Interface = IERC1155(_token);
-        tokenAddress = _token;
         owner = (_owner);
         platformFees = _platformFees;
         Treasury = _treasury;
-        SNFTLockInterface = ILocking(_SNFTLock);
         emit OwnerUpdated(_owner, block.timestamp);
         emit PlatformFeesUpdated(_platformFees, block.timestamp);
     }
-
+    /**
+     *  Requirements:
+     *  `fee` platform fees to be added to the contract
+     *  @dev to set the platform fees of the contract
+     */
     function setPlatformFees(uint256 fee) external {
         require(msg.sender == owner, "Only owner");
-        require(fee <= 50, "High fee"); //Max cap on platform fee is set to 50, and can be changed before deployment
+        require(fee <= 5000, "High fee"); //Max cap on platform fee is set to 50, and can be changed before deployment
         platformFees = fee;
         emit PlatformFeesUpdated(platformFees, block.timestamp);
     }
 
+     /**
+     *  Requirements:
+     *  `newOwner` address of the new owner
+     *  @dev to change the owner of the contract
+     */
     function changeOwner(address newOwner) external {
         require(msg.sender == owner, "Only owner");
         require(newOwner != address(0), "Zero address");
@@ -307,10 +329,16 @@ contract MarketPlace is ERC165 {
         emit OwnerUpdated(newOwner, block.timestamp);
     }
 
+     /**
+     *  Requirements:
+     *  `_treasury` address of the treasury
+     *  @dev to change the treasury address of the contract
+     */
     function changeTreasury(address _treasury) external returns (bool) {
         require(msg.sender == owner, "Only owner");
         require(_treasury != address(0), "Zero treasury address");
         Treasury = _treasury;
+        emit TreasuryUpdated(_treasury, block.timestamp);
         return true;
     }
 
@@ -325,50 +353,74 @@ contract MarketPlace is ERC165 {
             interfaceId == type(IERC1155).interfaceId ||
             super.supportsInterface(interfaceId);
     }
-
+    
+     /**
+     *  Requirements:
+     *  `_tokenId` NFT Id to be placed on sale
+     *  `_copies` number of copies to be placed on sale
+     *  `_pricePerNFT` price of the NFT
+     *  `_startTime` sale start time
+     *  `_endTime` sale end time
+     *  `_paymentToken` address of the payment token
+     *  @dev to place an order of NFTs for sale 
+     */
     function placeOrder(
-        uint256 tokenId,
-        uint256 copies,
-        uint256 pricePerNFT,
+        uint256 _tokenId,
+        uint256 _copies,
+        uint256 _pricePerNFT,
         uint256 _startTime,
         uint256 _endTime,
-        address _paymentToken,
-        bool _isResale
+        address _paymentToken
     ) external returns (bool){
-         require(pricePerNFT > 0, "Invalid price");
-        if(!_isResale)require(ERC1155Interface.isWhitelisted(msg.sender), "Not whitelisted");
-        require(
+
+        require(ERC1155Interface.isWhitelisted(msg.sender), "Not whitelisted");
+       
+         require(_pricePerNFT > 0, "Invalid price");
+         require(
             ERC1155Interface.paymentTokens(_paymentToken),
             "ERC20: Token not enabled for payment"
         );
+
         if (_startTime < block.timestamp) _startTime = block.timestamp;
+        require(_endTime > block.timestamp,"End time cannot be less than current timestamp");
+       
         ERC1155Interface.safeTransferFrom(
             msg.sender,
             address(this),
-            tokenId,
-            copies,
+            _tokenId,
+            _copies,
             ""
         );
         orderNonce++;
         order[orderNonce] = Order(
-            tokenId,
-            copies,
+            _tokenId,
+            _copies,
             msg.sender,
              SaleType.BuyNow,
             _paymentToken,
             _startTime,
             _endTime,
-            pricePerNFT,
+            _pricePerNFT,
             0,
             0,
-            0,
-            _isResale
+            0
         );
         emit OrderPlaced(order[orderNonce], orderNonce, block.timestamp);
         return true;
     
     }
-
+      /**
+     *  Requirements:
+     *  `_tokenId` NFT ID to be placed on sale
+     *  `_editions` number of copies to be placed on sale
+     *  `_pricePerNFT` price of the NFT
+     *  `_startTime` sale start time
+     *  `_endTime` sale end time
+     *  `_paymentToken` address of the payment token
+     *  `_stepInterval` time interal at which price of NFT is decreased
+     *  `_priceStep` value decrease in the price of NFT 
+     *  @dev to place an order of NFTs for dutch sale 
+     */
     function placeDutchOrder(
         uint256 _tokenId,
         uint256 _editions,
@@ -377,10 +429,10 @@ contract MarketPlace is ERC165 {
         uint256 _endPricePerNFT,
         address _paymentToken,
         uint256 _stepInterval,
-        uint256 _priceStep,
-        bool _isResale
+        uint256 _priceStep
     ) external returns (bool) {
-         if(!_isResale)require(ERC1155Interface.isWhitelisted(msg.sender), "Not whitelisted");
+    
+        require(ERC1155Interface.isWhitelisted(msg.sender), "Not whitelisted");
         require(
             ERC1155Interface.paymentTokens(_paymentToken),
             "Token not enabled for payment"
@@ -415,98 +467,113 @@ contract MarketPlace is ERC165 {
             _pricePerNFT,
             _endPricePerNFT,
             _stepInterval,
-            _priceStep,
-            _isResale
+            _priceStep
         );
         emit OrderPlaced(order[orderNonce], orderNonce, block.timestamp);
         return true;
     }
-
+     /**
+     *  Requirements:
+     *  `_orderNonce` order to be accessed
+     *  `_copies` number of copies to be bought
+     *  `_amount` price to be paid for NFT
+     *  `_allowance` number od NFTs allowed 
+     *  `_proof` validation of authenticated user
+     *  @dev to buy NFT 
+     */
     function buy(
         uint256 _orderNonce,
-        uint256 copies,
-        uint256 amount,
-        uint256 allowance,
-        bytes32[] calldata proof
-    ) external returns (bool) {
-        Order storage _order = order[_orderNonce];
+        uint256 _copies,
+        uint256 _amount,
+        uint256 _allowance,
+        bytes32[] calldata _proof
+    ) external nonReentrant returns (bool) {
+        Order memory _order = order[_orderNonce];
+
         require(_order.seller != msg.sender, "Seller can't buy");
+
         uint256 _projectID = ERC1155Interface.getProjectIDbyToken(_order.tokenId);
+        bytes32 _rootHash = ERC1155Interface.getProjectDetail(_projectID);
 
-        if(!_order.isReSale)
-
-        {
-            bytes32 _rootHash = ERC1155Interface.getProjectDetail(_projectID);
-
-            require(
-            verify(msg.sender, allowance, proof, _rootHash),
+        require(
+            verify(msg.sender, _allowance, _proof, _rootHash),
             "User not authenticated");
-            require(copies <= allowance && (userLimit[_projectID][msg.sender]+ copies) <= allowance,"User reached it's NFT limit");
-            updateUserLimit(_projectID,msg.sender,copies);
-        }
+        require(
+            _copies <= _allowance && (userLimit[_projectID][msg.sender]+ _copies) <= _allowance,
+            "User reached it's NFT limit");
 
+        updateUserLimit(_projectID,msg.sender,_copies);
+        
         require(_order.startTime <= block.timestamp, "Start time not reached");
         require(_order.endTime >= block.timestamp, "End time reached");
         require(_order.startPrice > 0, "NFT not in marketplace");
         require(_order.saleType == SaleType.BuyNow, "Wrong saletype");
-        require(copies > 0 && copies <= _order.copies, "Invalid no of copies");
+        require(_copies > 0 && _copies <= _order.copies, "Invalid no of copies");
         require(
-            amount ==
-                (copies * _order.startPrice) +
-                    ((platformFees * (copies * _order.startPrice)) / 100),
+            _amount ==
+                (_copies * _order.startPrice) +
+                    ((platformFees * (_copies * _order.startPrice)) / 10000),
             "Incorrect price"
         );
+
+        if (_order.copies == _copies) {
+            delete (order[orderNonce]);
+        } else {
+            order[_orderNonce].copies -= _copies;
+        }
+
         require(
-            payment(_order, msg.sender, amount, (_order.startPrice * copies)),
+            payment(_order, msg.sender, _amount, (_order.startPrice * _copies)),
             "Payment failed"
         );
         ERC1155Interface.safeTransferFrom(
             address(this),
             msg.sender,
             _order.tokenId,
-            copies,
+            _copies,
             ""
         );
         
-        addTotalRaise(_order.tokenId, copies * _order.startPrice);
-        addProjectRaise(_projectID, copies * _order.startPrice);
+        addTotalRaise(_order.tokenId, _copies * _order.startPrice);
+        addProjectRaise(_projectID, _copies * _order.startPrice);
 
          emit ItemBought(
-            order[_orderNonce],
+            _order,
             _orderNonce,
-            copies,
+            _copies,
             block.timestamp
         );
-
-        if (_order.copies == copies) {
-            delete (order[orderNonce]);
-        } else {
-            order[_orderNonce].copies -= copies;
-        }
         return true;
     }
 
+     /**
+     *  Requirements:
+     *  `_orderNonce` order to be accessed
+     *  `_copies` number of copies to be bought
+     *  `_tokenAmount` price to be paid for NFT
+     *  `_allowance` number od NFTs allowed 
+     *  `_proof` validation of authenticated user
+     *  @dev to buy NFT in dutch auction
+     */
     function buyDutchAuction(
         uint256 _orderNonce,
         uint256 _copies,
-        uint256 tokenAmount,
-        uint256 allowance,
-        bytes32[] calldata proof      
-    ) external returns (bool) {
-        Order storage _order = order[_orderNonce];
+        uint256 _tokenAmount,
+        uint256 _allowance,
+        bytes32[] calldata _proof      
+    ) external nonReentrant returns (bool) {
+        Order memory _order = order[_orderNonce];
+       
         uint256 _projectID = ERC1155Interface.getProjectIDbyToken(_order.tokenId);
+        bytes32  _rootHash= ERC1155Interface.getProjectDetail(_projectID);
 
-       if(!_order.isReSale)
-        {
-            bytes32  _rootHash= ERC1155Interface.getProjectDetail(_projectID);
-
-            require(verify(msg.sender, allowance, proof, _rootHash),
+        require(verify(msg.sender, _allowance, _proof, _rootHash),
                 "User not authenticated");
-            require(_copies <= allowance && (userLimit[_projectID][msg.sender]+ _copies) <= allowance,"User reached it's NFT limit");
-            updateUserLimit(_projectID,msg.sender,_copies);
+        require(_copies <= _allowance && (userLimit[_projectID][msg.sender]+ _copies) <= _allowance,
+                "User reached it's NFT limit");
         
-        }
-        
+        updateUserLimit(_projectID,msg.sender,_copies);
+    
         require(_order.startPrice > 0, "NFT not in marketplace");
         require(_order.saleType == SaleType.DutchAuction, "Wrong saletype");
         require(_order.startTime <= block.timestamp, "Start time not reached");
@@ -514,19 +581,23 @@ contract MarketPlace is ERC165 {
         require(_copies > 0 && _copies <= _order.copies, "Incorrect editions");
 
         uint256 currentPrice = getCurrentPrice(_orderNonce);
-
         uint256 totalAmount = (currentPrice * _copies);
 
         require(
-            (totalAmount + ((platformFees * totalAmount) / 100)) <= tokenAmount,
+            (totalAmount + ((platformFees * totalAmount) / 10000)) <= _tokenAmount,
             "Insufficient funds"
         );
 
+        if (_order.copies == _copies) {
+            delete (order[orderNonce]);
+        } else {
+            order[_orderNonce].copies -= _copies;
+        }
         require(
             payment(
                 _order,
                 msg.sender,
-                (totalAmount + ((platformFees * totalAmount) / 100)),
+                (totalAmount + ((platformFees * totalAmount) / 10000)),
                 totalAmount
             ),
             "Payment failed"
@@ -541,28 +612,26 @@ contract MarketPlace is ERC165 {
         
         addTotalRaise(_order.tokenId, _copies * currentPrice);
         addProjectRaise(_projectID,_copies * currentPrice);
-
         emit ItemBought(
-            order[_orderNonce],
+            _order,
             _orderNonce,
             _copies,
             block.timestamp
         );
-
-        if (_order.copies == _copies) {
-            delete (order[orderNonce]);
-        } else {
-            order[_orderNonce].copies -= _copies;
-        }
         return true;
     }
 
+     /**
+     *  Requirements:
+     *  `_orderNonce` order to be accessed
+     *  @dev to retreive the current price of NFT
+     */
     function getCurrentPrice(uint256 _orderNonce)
         public
         view
         returns (uint256 currentPrice)
     {
-        Order storage _order = order[_orderNonce];
+        Order memory _order = order[_orderNonce];
         if (_order.saleType == SaleType.DutchAuction) {
             uint256 timestamp = block.timestamp;
 
@@ -597,53 +666,27 @@ contract MarketPlace is ERC165 {
        
         uint256 buyerFees = fees;
         uint256 sellerFees = fees;
-
-        (uint256 _buyerSNFTAmount, , , , , ) = SNFTLockInterface.userDeposits(
-            buyer
-        );
-
-        if (_buyerSNFTAmount > 0) {
-            buyerFees = buyerFees / 2;
-            amount -= buyerFees;
-        }
         
-        sendValue(msg.sender, Treasury, buyerFees, _order.paymentToken);
-        
-
-        (uint256 _sellerSNFTAmount, , , , , ) = SNFTLockInterface.userDeposits(
-            _order.seller
-        );
-
-        if (_sellerSNFTAmount > 0) {
-            sellerFees = sellerFees / 2;
-        }
-
-        sendValue(msg.sender, Treasury, sellerFees, _order.paymentToken);
-
         amount = amount - buyerFees - sellerFees;
-        (address user, uint256 royaltyFee) = ERC1155Interface.royaltyInfo(
-            _order.tokenId,
-            (amount)
-        );
 
-        if (user != _order.seller && royaltyFee > 0) {
-            amount -= royaltyFee;
-
-                sendValue(msg.sender, user, royaltyFee, _order.paymentToken);
-            
-        }
-
-           sendValue(msg.sender, _order.seller, amount, _order.paymentToken);
+        sendValue(buyer, Treasury, buyerFees + sellerFees, _order.paymentToken);
+        sendValue(buyer, _order.seller, amount, _order.paymentToken);
         
         return true;
     }
 
-    function cancelOrder(uint256 _orderNonce) external returns (bool) {
-        Order storage _order = order[_orderNonce];
-        require(_order.seller == msg.sender, "Not the seller");
+    /**
+     *  Requirements:
+     *  `_orderNonce` order to be accessed
+     *  @dev to cancel order
+     */
+    function cancelOrder(uint256 _orderNonce) external nonReentrant returns (bool) {
+        Order memory _order = order[_orderNonce];
 
+        require(_order.seller == msg.sender, "Not the seller");
         require(block.timestamp >= _order.endTime, "End time not reached");
 
+        delete (order[_orderNonce]);
         ERC1155Interface.safeTransferFrom(
             address(this),
             msg.sender,
@@ -651,11 +694,20 @@ contract MarketPlace is ERC165 {
             _order.copies,
             ""
         );
-         emit OrderCancelled(_order, _orderNonce, block.timestamp);
-        delete (order[_orderNonce]);
+        emit OrderCancelled(_order, _orderNonce, block.timestamp);
+      
         return true;
     }
 
+    /**
+     *  Requirements:
+     *  `_projectID` Id of the project to be acccessed
+     *  @dev to retreive the current funds raised by each project
+     */
+    function getProjectRaisedFunds(uint256 _projectID)external view returns(uint256){
+        return projectRaise[_projectID];
+    }
+    
     function sendValue(
         address user,
         address to,
@@ -663,20 +715,17 @@ contract MarketPlace is ERC165 {
         address _token
     ) internal {
         uint256 allowance;
-        ERC20Interface = IERC20(_token);
-        allowance = ERC20Interface.allowance(user, address(this));
+        allowance = IERC20(_token).allowance(user, address(this));
         require(allowance >= amount, "Not enough allowance");
-        ERC20Interface.safeTransferFrom(user, to, amount);
+        IERC20(_token).safeTransferFrom(user, to, amount);
     }
 
     function addTotalRaise(uint256 _tokenId, uint256 _amount)internal{
         totalRaise[_tokenId] += _amount;
-        
     }
 
     function addProjectRaise(uint256 _projectId, uint256 _amount)internal{
         projectRaise[_projectId] += _amount;
-        
     }
 
     function verify(
@@ -696,10 +745,6 @@ contract MarketPlace is ERC165 {
     
     function updateUserLimit(uint256 _projectID, address _user, uint256 _copies)internal{
          userLimit[_projectID][_user] += _copies;
-    }
-
-    function getProjectRaisedFunds(uint256 _projectID)external view returns(uint256){
-        return projectRaise[_projectID];
     }
     
     function onERC1155Received(
