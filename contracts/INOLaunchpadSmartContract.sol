@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.9;
+pragma solidity 0.8.9;
 
 /**
  * @dev Interface of the ERC20 standard as defined in the EIP. Does not include
@@ -242,30 +242,29 @@ library MerkleProof {
 contract SeedifyLaunchpad is Ownable, Pausable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
-    address[] private whitelist;
     uint256 public nftPrice;
     address public projectOwner;
     address public tokenAddress;
     bytes32 public rootHash;
-    uint256 public totalSupply;
+    uint256 public totalAllocation;
     uint256 public totalRaised;
+    uint256 public nftPurchased;
     IERC20 public ERC20Interface;
-    event Whitelisted(address indexed _address);
-    event RemovedFromWhitelist(address indexed account);
     mapping(address => bool) public isBuy;
 
     constructor(
-        uint256 _busdPrice,
+        uint256 _nftPrice,
         address _projectOwner,
         address _tokenAddress,
-        uint256 _totalSupply
+        uint256 _totalAllocation
     ) {
-        nftPrice = _busdPrice * 10**18;
+        require(_nftPrice > 0, "Zero Price!");
+        nftPrice = _nftPrice * 10**18;
         require(_projectOwner != address(0), "Zero project owner address");
         projectOwner = _projectOwner;
         require(_tokenAddress != address(0), "Zero token address");
         tokenAddress = _tokenAddress;
-        totalSupply = _totalSupply;
+        totalAllocation = _totalAllocation;
         ERC20Interface = IERC20(tokenAddress);
     }
 
@@ -282,53 +281,7 @@ contract SeedifyLaunchpad is Ownable, Pausable {
         _unpause();
     }
 
-    //add the address in Whitelist
-    function addWhitelist(address[] memory _address) public onlyOwner {
-        uint256 i;
-        uint256 length = _address.length;
-        for (i = 0; i < length; i++) {
-            address _addressArr = _address[i];
-            whitelist.push(_addressArr);
-            emit Whitelisted(_addressArr);
-        }
-    }
-
-    //remove the address in Whitelist
-    function removeWhitelist(address[] memory _address) public onlyOwner {
-        uint256 i;
-        uint256 j;
-        uint256 addressLength = _address.length;
-        uint256 whitelistLength = whitelist.length;
-        for (i = 0; i < addressLength; i++) {
-            for (j = 0; j < whitelistLength; j++) {
-                address _addressArr = _address[i];
-                address _whitelistArr = whitelist[j];
-                if (_whitelistArr == _addressArr) {
-                    delete whitelist[j];
-                    emit RemovedFromWhitelist(_addressArr);
-                }
-            }
-        }
-    }
-
-    // check the address in whitelist
-    function isWhitelisted(address _address) public view returns (bool) {
-        uint256 i;
-        uint256 length = whitelist.length;
-        for (i = 0; i < length; i++) {
-            address _addressArr = whitelist[i];
-            if (_addressArr == _address) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    function updateHash(bytes32 _hash) public {
-        require(
-            isWhitelisted(msg.sender),
-            "You are not eligible to update roothash"
-        );
+    function updateHash(bytes32 _hash)  public onlyOwner {
         rootHash = _hash;
     }
 
@@ -338,10 +291,11 @@ contract SeedifyLaunchpad is Ownable, Pausable {
         returns (bool)
     {
         require(verify(msg.sender, proof, rootHash), "User not authenticated");
-
-        require((isBuy[msg.sender] == false), "You have already buy the item");
-        require(amount == nftPrice, "amount is different");
+        require((isBuy[msg.sender] == false), "You have already bought the allocation!");
+        require(amount == nftPrice, "The purchased amount is different!");
+        require(totalAllocation >= nftPurchased, "All the NFTs are sold!");        
         ERC20Interface.safeTransferFrom(msg.sender, projectOwner, amount);
+        nftPurchased += 1;
         isBuy[msg.sender] = true;
         totalRaised = totalRaised.add(amount);
         return true;
