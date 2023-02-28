@@ -1,5 +1,9 @@
+/**
+ *Submitted for verification at BscScan.com on 2023-02-27
+*/
+
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity 0.8.9;
+pragma solidity ^0.8.0;
 
 /**
  * @dev Interface of the ERC20 standard as defined in the EIP. Does not include
@@ -242,29 +246,43 @@ library MerkleProof {
 contract SeedifyLaunchpad is Ownable, Pausable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
+    address[] private whitelist;
     uint256 public nftPrice;
     address public projectOwner;
     address public tokenAddress;
     bytes32 public rootHash;
-    uint256 public totalAllocation;
+    uint256 public totalSupply;
     uint256 public totalRaised;
     uint256 public nftPurchased;
     IERC20 public ERC20Interface;
+    event Whitelisted(address indexed _address);
+    event RemovedFromWhitelist(address indexed account);
     mapping(address => bool) public isBuy;
 
+    struct user {
+        uint256 nftPurchased;
+        uint256 investedAmount;
+    }
+
+    event UserInvestment(
+        address indexed user,
+        uint256 nftPurchased,
+        uint256 amount
+    );
+    mapping(address => user) public userDetails;
+
     constructor(
-        uint256 _nftPrice,
+        uint256 _busdPrice,
         address _projectOwner,
         address _tokenAddress,
-        uint256 _totalAllocation
+        uint256 _totalSupply
     ) {
-        require(_nftPrice > 0, "Zero Price!");
-        nftPrice = _nftPrice * 10**18;
+        nftPrice = _busdPrice * 10**18;
         require(_projectOwner != address(0), "Zero project owner address");
         projectOwner = _projectOwner;
         require(_tokenAddress != address(0), "Zero token address");
         tokenAddress = _tokenAddress;
-        totalAllocation = _totalAllocation;
+        totalSupply = _totalSupply;
         ERC20Interface = IERC20(tokenAddress);
     }
 
@@ -281,28 +299,86 @@ contract SeedifyLaunchpad is Ownable, Pausable {
         _unpause();
     }
 
-    function updateHash(bytes32 _hash)  public onlyOwner {
+    //add the address in Whitelist
+    function addWhitelist(address[] memory _address) public onlyOwner {
+        uint256 i;
+        uint256 length = _address.length;
+        for (i = 0; i < length; i++) {
+            address _addressArr = _address[i];
+            whitelist.push(_addressArr);
+            emit Whitelisted(_addressArr);
+        }
+    }
+
+    //remove the address in Whitelist
+    function removeWhitelist(address[] memory _address) public onlyOwner {
+        uint256 i;
+        uint256 j;
+        uint256 addressLength = _address.length;
+        uint256 whitelistLength = whitelist.length;
+        for (i = 0; i < addressLength; i++) {
+            for (j = 0; j < whitelistLength; j++) {
+                address _addressArr = _address[i];
+                address _whitelistArr = whitelist[j];
+                if (_whitelistArr == _addressArr) {
+                    delete whitelist[j];
+                    emit RemovedFromWhitelist(_addressArr);
+                }
+            }
+        }
+    }
+
+    // check the address in whitelist
+    function isWhitelisted(address _address) public view returns (bool) {
+        uint256 i;
+        uint256 length = whitelist.length;
+        for (i = 0; i < length; i++) {
+            address _addressArr = whitelist[i];
+            if (_addressArr == _address) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function updateHash(bytes32 _hash) public onlyOwner {
         rootHash = _hash;
     }
 
-    function buyTokens(uint256 amount, bytes32[] calldata proof)
-        external
-        whenNotPaused
-        returns (bool)
-    {
-        require(verify(msg.sender, proof, rootHash), "User not authenticated");
-        require((isBuy[msg.sender] == false), "You have already bought the allocation!");
-        require(amount == nftPrice, "The purchased amount is different!");
-        require(totalAllocation >= nftPurchased, "All the NFTs are sold!");        
+    function buyTokens(
+        uint256 units,
+        uint256 amount,
+        uint256 allocation,
+        bytes32[] calldata proof
+    ) external whenNotPaused returns (bool) {
+        require(
+            verify(msg.sender, allocation, proof, rootHash),
+            "User not authenticated"
+        );
+        require(amount == (units * nftPrice), "amount is different");
+        require(
+            userDetails[msg.sender].nftPurchased.add(units) <= allocation,
+            "You have reached max allocation limit"
+        );
         ERC20Interface.safeTransferFrom(msg.sender, projectOwner, amount);
-        nftPurchased += 1;
-        isBuy[msg.sender] = true;
+        nftPurchased += units;
         totalRaised = totalRaised.add(amount);
+        userDetails[msg.sender].nftPurchased = userDetails[msg.sender]
+            .nftPurchased
+            .add(units);
+        userDetails[msg.sender].investedAmount = userDetails[msg.sender]
+            .investedAmount
+            .add(amount);
+        if (userDetails[msg.sender].nftPurchased == allocation) {
+            isBuy[msg.sender] = true;
+        }
+        emit UserInvestment(msg.sender, units, amount);
         return true;
     }
 
     function verify(
         address user,
+        uint256 allocation,
         bytes32[] calldata proof,
         bytes32 _rootHash
     ) public pure returns (bool) {
@@ -310,7 +386,7 @@ contract SeedifyLaunchpad is Ownable, Pausable {
             MerkleProof.verify(
                 proof,
                 _rootHash,
-                keccak256(abi.encodePacked(user))
+                keccak256(abi.encodePacked(user, allocation))
             )
         );
     }
